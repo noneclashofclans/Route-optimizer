@@ -24,7 +24,7 @@ const Register = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/register', {
+      const res = await axios.post('https://route-optimizer-back-vj4v.onrender.com/api/auth/register', {
         username: formData.username,
         password: formData.password,
         email: formData.email
