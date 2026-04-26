@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 
-const allowedOrigins = ['http://localhost:5173'];
+const allowedOrigins = ['http://localhost:5173', 'https://route-opimizer-rishit.netlify.app/'];
 
 app.use(cors({
     origin: (origin, cb) => {
