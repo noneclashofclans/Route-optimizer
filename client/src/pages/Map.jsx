@@ -6,6 +6,28 @@ const center = { lat: 20.5937, lng: 78.9629 };
 const COLORS = ['#185FA5', '#e63946', '#2a9d8f'];
 const libraries = ['places'];
 
+const inputStyle = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '9px 12px',
+  border: '1px solid #e8e8e8',
+  borderRadius: '8px',
+  fontSize: '13px',
+  outline: 'none',
+  background: '#fafafa',
+  transition: 'border 0.2s',
+};
+
+const labelStyle = {
+  fontSize: '11px',
+  fontWeight: 600,
+  color: '#999',
+  display: 'block',
+  marginBottom: '5px',
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+};
+
 const Map = () => {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -15,15 +37,43 @@ const Map = () => {
   const [map, setMap] = useState(null);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+  const [stops, setStops] = useState([]);
   const [numRoutes, setNumRoutes] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [directions, setDirections] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [selectedRoute, setSelectedRoute] = useState(null);
+  const [mileage, setMileage] = useState('');
+  const [fuelPrice, setFuelPrice] = useState(104);
 
   const onLoad = useCallback((m) => setMap(m), []);
   const onUnmount = useCallback(() => setMap(null), []);
+
+  const addStop = () => setStops([...stops, '']);
+  const updateStop = (i, val) => setStops(stops.map((s, idx) => idx === i ? val : s));
+  const removeStop = (i) => setStops(stops.filter((_, idx) => idx !== i));
+
+
+  const shareOnWhatsApp = (r) => {
+      const fuelCost = mileage > 0 ? `Fuel Cost: Rs.${((parseFloat(r.distance) / mileage) * fuelPrice).toFixed(0)}` : '';
+      const stopsLine = stops.length > 0 ? `Stops: ${stops.filter(s => s.trim()).join(' -> ')}\n` : '';
+      const message = 
+    `Route Details
+    --------------
+    From: ${start}
+    To: ${end}
+    ${stopsLine}
+    Via: ${r.via}
+    Duration: ${r.duration}
+    Distance: ${r.distance}
+    Arrives At: ${r.arrivalTime}
+    ${fuelCost}
+
+    Shared via Route-optimizer`;
+
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+    };
 
   const calculateRoutes = () => {
     if (!start || !end) return alert('Enter both locations');
@@ -36,22 +86,29 @@ const Map = () => {
       destination: end,
       travelMode: window.google.maps.TravelMode.DRIVING,
       provideRouteAlternatives: true,
+      waypoints: stops.filter(s => s.trim()).map(s => ({ location: s, stopover: true })),
     }, (result, status) => {
       setLoading(false);
       if (status !== 'OK') return alert('Cannot find routes: ' + status);
 
       const available = result.routes.slice(0, numRoutes);
-
       setDirections(available.map((_, i) => ({ ...result, routes: [result.routes[i]] })));
-
-      setRoutes(available.map((r, i) => ({
-        label: `Route ${i + 1}`,
-        via: r.summary,
-        distance: r.legs[0].distance.text,
-        duration: r.legs[0].duration.text,
-        durationVal: r.legs[0].duration.value,
-        color: COLORS[i],
-      })));
+      setRoutes(available.map((r, i) => {
+        const totalDistance = r.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
+        const totalDuration = r.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
+        const arrivalTime = new Date(Date.now() + totalDuration * 1000).toLocaleTimeString('en-IN', {
+          hour: '2-digit', minute: '2-digit', hour12: true
+        });
+        return {
+          label: `Route ${i + 1}`,
+          via: r.summary,
+          distance: (totalDistance / 1000).toFixed(1) + ' km',
+          duration: r.legs[0].duration.text,
+          durationVal: totalDuration,
+          arrivalTime,
+          color: COLORS[i],
+        };
+      }));
     });
   };
 
@@ -60,53 +117,185 @@ const Map = () => {
     : -1;
 
   const inputPanel = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontFamily: "'DM Sans', sans-serif" }}>
-      <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f0f0f', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Route Planner</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontFamily: "'DM Sans', sans-serif" }}>
 
-      <div>
-        <label style={{ fontSize: '12px', fontWeight: 500, color: '#555', display: 'block', marginBottom: '5px' }}>Start</label>
-        <input value={start} onChange={e => setStart(e.target.value)} placeholder="e.g. Bhubaneswar"
-          style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: '6px', fontSize: '13px', outline: 'none' }} />
-      </div>
-
-      <div>
-        <label style={{ fontSize: '12px', fontWeight: 500, color: '#555', display: 'block', marginBottom: '5px' }}>Destination</label>
-        <input value={end} onChange={e => setEnd(e.target.value)} placeholder="e.g. Cuttack"
-          style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: '6px', fontSize: '13px', outline: 'none' }} />
-      </div>
-
-      <div>
-        <label style={{ fontSize: '12px', fontWeight: 500, color: '#555', display: 'block', marginBottom: '5px' }}>
-          Routes to compare: <strong>{numRoutes}</strong>
-        </label>
-        <input type="range" min="1" max="3" value={numRoutes} onChange={e => setNumRoutes(Number(e.target.value))}
-          style={{ width: '100%', accentColor: '#185FA5' }} />
-      </div>
-
-      <button onClick={calculateRoutes} disabled={loading}
-        style={{ width: '100%', padding: '11px', background: '#0f0f0f', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>
-        {loading ? 'Calculating...' : 'Show routes'}
-      </button>
-
-      {routes.map((r, i) => (
-        <div key={i} onClick={() => setSelectedRoute({ ...r, dir: directions[i] })} style={{
-          padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
-          border: `2px solid ${i === optimalIdx ? r.color : '#eee'}`,
-          background: i === optimalIdx ? '#f0f6ff' : '#fafafa',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: r.color, flexShrink: 0 }} />
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#0f0f0f' }}>{r.label}</span>
-            {i === optimalIdx && (
-              <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: 600, color: '#185FA5', background: '#dbeafe', padding: '2px 8px', borderRadius: '20px' }}>
-                OPTIMAL
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: '11px', color: '#888', marginBottom: '2px' }}>via {r.via}</div>
-          <div style={{ fontSize: '13px', color: '#333', fontWeight: 500 }}>{r.duration} · {r.distance}</div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid #f0f0f0' }}>
+        <div style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}></div>
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f0f0f', letterSpacing: '0.03em' }}>Route Planner</div>
+          <div style={{ fontSize: '11px', color: '#aaa' }}>Find & compare routes</div>
         </div>
-      ))}
+      </div>
+
+      {/* Route inputs */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ position: 'relative' }}>
+          <label style={labelStyle}>From</label>
+          <div style={{ position: 'relative' }}>
+            <input value={start} onChange={e => setStart(e.target.value)} placeholder="Starting point"
+              style={{ ...inputStyle, paddingLeft: '32px' }} />
+          </div>
+        </div>
+
+        {/* Dotted line connector */}
+        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '14px', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            {[...Array(3)].map((_, i) => (
+              <div key={i} style={{ width: '2px', height: '4px', background: '#ddd', borderRadius: '1px' }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Stops */}
+        {stops.map((s, i) => (
+          <div key={i}>
+            <label style={labelStyle}>Stop {i + 1}</label>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input value={s} onChange={e => updateStop(i, e.target.value)} placeholder={`e.g. Puri`}
+                  style={{ ...inputStyle, paddingLeft: '32px' }} />
+              </div>
+              <button onClick={() => removeStop(i)}
+                style={{ flexShrink: 0, width: '34px', height: '34px', background: '#fff5f5', border: '1px solid #fdd', borderRadius: '8px', cursor: 'pointer', color: '#e63946', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {stops.length < 3 && (
+          <button onClick={addStop}
+            style={{ width: '100%', padding: '8px', background: '#fff', color: '#555', border: '1px dashed #d0d0d0', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontWeight: 500 }}>
+            + Add Stop
+          </button>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '14px', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            {[...Array(3)].map((_, i) => (
+              <div key={i} style={{ width: '2px', height: '4px', background: '#ddd', borderRadius: '1px' }} />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>To</label>
+          <div style={{ position: 'relative' }}>
+            <input value={end} onChange={e => setEnd(e.target.value)} placeholder="Destination"
+              style={{ ...inputStyle, paddingLeft: '32px' }} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ height: '1px', background: '#f0f0f0' }} />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <label style={labelStyle}>Routes to compare</label>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f0f0f', background: '#f0f0f0', padding: '2px 8px', borderRadius: '20px' }}>{numRoutes}</span>
+          </div>
+          <input type="range" min="1" max="3" value={numRoutes} onChange={e => setNumRoutes(Number(e.target.value))}
+            style={{ width: '100%', accentColor: '#185FA5' }} />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Vehicle mileage (km/l)</label>
+          <input
+            type="number"
+            value={mileage}
+            onChange={e => setMileage(Number(e.target.value))}
+            placeholder="e.g. 15"
+            min="1"
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      {/* Get Routes button */}
+      {!loading && routes.length === 0 && (
+        <button onClick={calculateRoutes}
+          style={{ width: '100%', padding: '11px', background: '#0f0f0f', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.02em' }}>
+          Get Routes →
+        </button>
+      )}
+
+      {loading && (
+        <div style={{ textAlign: 'center', fontSize: '13px', color: '#aaa', padding: '8px', background: '#fafafa', borderRadius: '8px' }}>
+          ⏳ Fetching routes...
+        </div>
+      )}
+
+      {/* Route cards */}
+      {routes.length > 0 && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Results</div>
+            <div style={{ fontSize: '11px', color: '#bbb' }}>{routes.length} route{routes.length > 1 ? 's' : ''} found</div>
+          </div>
+
+          {routes.map((r, i) => (
+            <div key={i} onClick={() => setSelectedRoute({ ...r, dir: directions[i] })} style={{
+              padding: '12px', borderRadius: '10px', cursor: 'pointer',
+              border: `1.5px solid ${i === optimalIdx ? r.color : '#eee'}`,
+              background: i === optimalIdx ? '#f0f6ff' : '#fff',
+              boxShadow: i === optimalIdx ? `0 2px 12px ${r.color}22` : '0 1px 4px rgba(0,0,0,0.04)',
+              transition: 'all 0.15s',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color, flexShrink: 0 }} />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f0f0f' }}>{r.label}</span>
+                {i === optimalIdx && (
+                  <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: 700, color: '#185FA5', background: '#dbeafe', padding: '2px 8px', borderRadius: '20px' }}>
+                    ✓ OPTIMAL
+                  </span>
+                )}
+              </div>
+
+              <div style={{ fontSize: '11px', color: '#bbb', marginBottom: '8px' }}>via {r.via}</div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <div style={{ background: '#f8f8f8', borderRadius: '6px', padding: '6px 8px' }}>
+                  <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '2px' }}>DURATION</div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f0f0f' }}>{r.duration}</div>
+                </div>
+                <div style={{ background: '#f8f8f8', borderRadius: '6px', padding: '6px 8px' }}>
+                  <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '2px' }}>DISTANCE</div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f0f0f' }}>{r.distance}</div>
+                </div>
+                <div style={{ background: '#f0faf8', borderRadius: '6px', padding: '6px 8px' }}>
+                  <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '2px' }}>ARRIVES AT</div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#2a9d8f' }}>🕐 {r.arrivalTime}</div>
+                </div>
+                {mileage > 0 && (
+                  <div style={{ background: '#f0faf8', borderRadius: '6px', padding: '6px 8px' }}>
+                    <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '2px' }}>FUEL COST</div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#2a9d8f' }}>⛽ ₹{((parseFloat(r.distance) / mileage) * fuelPrice).toFixed(0)}</div>
+                  </div>
+                )}
+
+                <button
+                  onClick={(e) => { e.stopPropagation(); shareOnWhatsApp(r); }}
+                  style={{
+                    marginTop: '10px', width: '100%', padding: '7px',
+                    background: '#07a140', color: '#fff', border: 'none',
+                    borderRadius: '7px', fontSize: '12px', fontWeight: 600,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', gap: '6px'
+                  }}>
+                    <img 
+                      src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" 
+                      style={{ width: '16px', height: '16px' }} 
+                      alt="whatsapp" 
+                    />
+                  Share
+                </button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 
@@ -121,8 +310,8 @@ const Map = () => {
       <Navbar />
 
       {/* Desktop */}
-      <div className="d-none d-lg-block" style={{ flex: 1, padding: '30px', background: '#f5f5f5', overflow: 'hidden', position: 'relative' }}>
-        <div style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.10)' }}>
+      <div className="d-none d-lg-block" style={{ flex: 1, padding: '30px', background: '#f0f2f5', overflow: 'hidden', position: 'relative' }}>
+        <div style={{ width: '100%', height: '100%', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.10)' }}>
           <GoogleMap mapContainerStyle={{ width: '100%', height: '100%' }} center={center} zoom={6}
             onLoad={onLoad} onUnmount={onUnmount}
             options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}>
@@ -132,7 +321,7 @@ const Map = () => {
             ))}
           </GoogleMap>
         </div>
-        <div style={{ position: 'absolute', top: '50px', left: '50px', zIndex: 10, background: '#fff', borderRadius: '10px', padding: '1.4rem', width: '280px', boxShadow: '0 4px 24px rgba(0,0,0,0.13)', maxHeight: 'calc(100vh - 140px)', overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '50px', left: '50px', zIndex: 10, background: '#fff', borderRadius: '14px', padding: '1.4rem', width: '300px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', maxHeight: 'calc(100vh - 140px)', overflowY: 'auto' }}>
           {inputPanel}
         </div>
       </div>
@@ -201,11 +390,12 @@ const Map = () => {
             </div>
 
             {/* Info cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1px', background: '#f0f0f0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1px', background: '#f0f0f0' }}>
               {[
                 { label: 'Duration', value: selectedRoute.duration },
                 { label: 'Distance', value: selectedRoute.distance },
-                { label: 'Best mode', value: parseFloat(selectedRoute.distance) <= 10 ? '🛵 Bike/Auto' : '🚗 Drive' },
+                { label: 'Arrives At', value: selectedRoute.arrivalTime },
+                { label: 'Fuel Cost', value: mileage > 0 ? `₹${((parseFloat(selectedRoute.distance) / mileage) * fuelPrice).toFixed(0)}` : '-' },
               ].map((item) => (
                 <div key={item.label} style={{ background: '#fff', padding: '1rem', textAlign: 'center' }}>
                   <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</div>
