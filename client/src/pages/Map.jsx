@@ -28,6 +28,12 @@ const labelStyle = {
   letterSpacing: '0.06em',
 };
 
+const formatDuration = (totalSec) => {
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.round((totalSec % 3600) / 60);
+  return h > 0 ? `${h} hr ${m} min` : `${m} min`;
+};
+
 const Map = () => {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -54,26 +60,35 @@ const Map = () => {
   const updateStop = (i, val) => setStops(stops.map((s, idx) => idx === i ? val : s));
   const removeStop = (i) => setStops(stops.filter((_, idx) => idx !== i));
 
-
   const shareOnWhatsApp = (r) => {
-      const fuelCost = mileage > 0 ? `Fuel Cost: Rs.${((parseFloat(r.distance) / mileage) * fuelPrice).toFixed(0)}` : '';
-      const stopsLine = stops.length > 0 ? `Stops: ${stops.filter(s => s.trim()).join(' -> ')}\n` : '';
-      const message = 
-    `Route Details
-    --------------
-    From: ${start}
-    To: ${end}
-    ${stopsLine}
-    Via: ${r.via}
-    Duration: ${r.duration}
-    Distance: ${r.distance}
-    Arrives At: ${r.arrivalTime}
-    ${fuelCost}
+    const fuelCost = mileage > 0
+      ? `Fuel Cost: Rs.${((parseFloat(r.distance) / mileage) * fuelPrice).toFixed(0)}`
+      : '';
+    const stopsLine = stops.length > 0
+      ? `Stops: ${stops.filter(s => s.trim()).join(' -> ')}\n`
+      : '';
+    const legLines = r.legs.length > 1
+      ? '\nBreakdown:\n' + r.legs.map((leg, i) =>
+          `  Leg ${i + 1}: ${leg.from} → ${leg.to} | ${leg.distance} | ${leg.duration} | arrives ~${leg.arrivalTime}`
+        ).join('\n')
+      : '';
+    const message =
+      `Route Details
+--------------
+From: ${start}
+To: ${end}
+${stopsLine}
+Via: ${r.via}
+Total Duration: ${r.duration}
+Distance: ${r.distance}
+Arrives At: ${r.arrivalTime}
+${fuelCost}
+${legLines}
 
-    Shared via Route-optimizer`;
+Shared via Route-optimizer`;
 
-      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-    };
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  };
 
   const calculateRoutes = () => {
     if (!start || !end) return alert('Enter both locations');
@@ -93,20 +108,42 @@ const Map = () => {
 
       const available = result.routes.slice(0, numRoutes);
       setDirections(available.map((_, i) => ({ ...result, routes: [result.routes[i]] })));
+
+      const departTime = Date.now();
+      const allPoints = [start, ...stops.filter(s => s.trim()), end];
+
       setRoutes(available.map((r, i) => {
         const totalDistance = r.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
         const totalDuration = r.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
-        const arrivalTime = new Date(Date.now() + totalDuration * 1000).toLocaleTimeString('en-IN', {
-          hour: '2-digit', minute: '2-digit', hour12: true
+
+        const arrivalTime = new Date(departTime + totalDuration * 1000)
+          .toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+        // Build per-leg breakdown with rolling cumulative arrival times
+        let cumulativeSec = 0;
+        const legs = r.legs.map((leg, legIdx) => {
+          cumulativeSec += leg.duration.value;
+          const legArrival = new Date(departTime + cumulativeSec * 1000)
+            .toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+          return {
+            from: allPoints[legIdx],
+            to: allPoints[legIdx + 1],
+            distance: (leg.distance.value / 1000).toFixed(1) + ' km',
+            duration: formatDuration(leg.duration.value),
+            durationSec: leg.duration.value,
+            arrivalTime: legArrival,
+          };
         });
+
         return {
           label: `Route ${i + 1}`,
           via: r.summary,
           distance: (totalDistance / 1000).toFixed(1) + ' km',
-          duration: r.legs[0].duration.text,
+          duration: formatDuration(totalDuration),
           durationVal: totalDuration,
           arrivalTime,
           color: COLORS[i],
+          legs,
         };
       }));
     });
@@ -121,7 +158,6 @@ const Map = () => {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid #f0f0f0' }}>
-        <div style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}></div>
         <div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f0f0f', letterSpacing: '0.03em' }}>Route Planner</div>
           <div style={{ fontSize: '11px', color: '#aaa' }}>Find & compare routes</div>
@@ -130,16 +166,13 @@ const Map = () => {
 
       {/* Route inputs */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ position: 'relative' }}>
+        <div>
           <label style={labelStyle}>From</label>
-          <div style={{ position: 'relative' }}>
-            <input value={start} onChange={e => setStart(e.target.value)} placeholder="Starting point"
-              style={{ ...inputStyle, paddingLeft: '32px' }} />
-          </div>
+          <input value={start} onChange={e => setStart(e.target.value)} placeholder="Starting point"
+            style={inputStyle} />
         </div>
 
-        {/* Dotted line connector */}
-        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '14px', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '14px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             {[...Array(3)].map((_, i) => (
               <div key={i} style={{ width: '2px', height: '4px', background: '#ddd', borderRadius: '1px' }} />
@@ -147,17 +180,14 @@ const Map = () => {
           </div>
         </div>
 
-        {/* Stops */}
         {stops.map((s, i) => (
           <div key={i}>
             <label style={labelStyle}>Stop {i + 1}</label>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <input value={s} onChange={e => updateStop(i, e.target.value)} placeholder={`e.g. Puri`}
-                  style={{ ...inputStyle, paddingLeft: '32px' }} />
-              </div>
+              <input value={s} onChange={e => updateStop(i, e.target.value)} placeholder="e.g. Puri"
+                style={{ ...inputStyle, flex: 1 }} />
               <button onClick={() => removeStop(i)}
-                style={{ flexShrink: 0, width: '34px', height: '34px', background: '#fff5f5', border: '1px solid #fdd', borderRadius: '8px', cursor: 'pointer', color: '#e63946', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                style={{ flexShrink: 0, width: '34px', height: '34px', background: '#fff5f5', border: '1px solid #fdd', borderRadius: '8px', cursor: 'pointer', color: '#ff0000', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 ✕
               </button>
             </div>
@@ -171,7 +201,7 @@ const Map = () => {
           </button>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '14px', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '14px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             {[...Array(3)].map((_, i) => (
               <div key={i} style={{ width: '2px', height: '4px', background: '#ddd', borderRadius: '1px' }} />
@@ -181,10 +211,8 @@ const Map = () => {
 
         <div>
           <label style={labelStyle}>To</label>
-          <div style={{ position: 'relative' }}>
-            <input value={end} onChange={e => setEnd(e.target.value)} placeholder="Destination"
-              style={{ ...inputStyle, paddingLeft: '32px' }} />
-          </div>
+          <input value={end} onChange={e => setEnd(e.target.value)} placeholder="Destination"
+            style={inputStyle} />
         </div>
       </div>
 
@@ -202,18 +230,11 @@ const Map = () => {
 
         <div>
           <label style={labelStyle}>Vehicle mileage (km/l)</label>
-          <input
-            type="number"
-            value={mileage}
-            onChange={e => setMileage(Number(e.target.value))}
-            placeholder="e.g. 15"
-            min="1"
-            style={inputStyle}
-          />
+          <input type="number" value={mileage} onChange={e => setMileage(Number(e.target.value))}
+            placeholder="e.g. 15" min="1" style={inputStyle} />
         </div>
       </div>
 
-      {/* Get Routes button */}
       {!loading && routes.length === 0 && (
         <button onClick={calculateRoutes}
           style={{ width: '100%', padding: '11px', background: '#0f0f0f', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.02em' }}>
@@ -243,6 +264,7 @@ const Map = () => {
               boxShadow: i === optimalIdx ? `0 2px 12px ${r.color}22` : '0 1px 4px rgba(0,0,0,0.04)',
               transition: 'all 0.15s',
             }}>
+              {/* Card header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color, flexShrink: 0 }} />
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f0f0f' }}>{r.label}</span>
@@ -255,9 +277,10 @@ const Map = () => {
 
               <div style={{ fontSize: '11px', color: '#bbb', marginBottom: '8px' }}>via {r.via}</div>
 
+              {/* Stats grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                 <div style={{ background: '#f8f8f8', borderRadius: '6px', padding: '6px 8px' }}>
-                  <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '2px' }}>DURATION</div>
+                  <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '2px' }}>TOTAL DURATION</div>
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f0f0f' }}>{r.duration}</div>
                 </div>
                 <div style={{ background: '#f8f8f8', borderRadius: '6px', padding: '6px 8px' }}>
@@ -274,26 +297,91 @@ const Map = () => {
                     <div style={{ fontSize: '12px', fontWeight: 700, color: '#2a9d8f' }}>⛽ ₹{((parseFloat(r.distance) / mileage) * fuelPrice).toFixed(0)}</div>
                   </div>
                 )}
-
-                <button
-                  onClick={(e) => { e.stopPropagation(); shareOnWhatsApp(r); }}
-                  style={{
-                    marginTop: '10px', width: '100%', padding: '7px',
-                    background: '#07a140', color: '#fff', border: 'none',
-                    borderRadius: '7px', fontSize: '12px', fontWeight: 600,
-                    cursor: 'pointer', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', gap: '6px'
-                  }}>
-                    <img 
-                      src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" 
-                      style={{ width: '16px', height: '16px' }} 
-                      alt="whatsapp" 
-                    />
-                  Share
-                </button>
               </div>
+
+              {/* Leg-by-leg breakdown — only when there are intermediate stops */}
+              {r.legs && r.legs.length > 1 && (
+                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f0f0f0' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+                    Leg-by-leg breakdown
+                  </div>
+
+                  {/* Start node */}
+                  <div style={{ display: 'flex', alignItems: 'stretch', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '16px', flexShrink: 0 }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#185FA5', flexShrink: 0, marginTop: '2px' }} />
+                      <div style={{ flex: 1, width: '1.5px', background: '#e8e8e8', margin: '3px 0' }} />
+                    </div>
+                    <div style={{ flex: 1, paddingBottom: '10px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 500, color: '#0f0f0f' }}>{start}</div>
+                      <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>Starting point · depart now</div>
+                    </div>
+                  </div>
+
+                  {/* Intermediate stops (all legs except last) */}
+                  {r.legs.slice(0, -1).map((leg, legIdx) => (
+                    <div key={legIdx} style={{ display: 'flex', alignItems: 'stretch', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '16px', flexShrink: 0 }}>
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#aaa', flexShrink: 0, marginTop: '2px' }} />
+                        <div style={{ flex: 1, width: '1.5px', background: '#e8e8e8', margin: '3px 0' }} />
+                      </div>
+                      <div style={{ flex: 1, paddingBottom: '10px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 500, color: '#0f0f0f' }}>{leg.to}</div>
+                        <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>Stop {legIdx + 1} · {leg.distance}</div>
+                        <div style={{ fontSize: '11px', color: '#185FA5', fontWeight: 500, marginTop: '2px' }}>
+                          +{leg.duration} · arrives ~{leg.arrivalTime}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Destination node — uses last leg */}
+                  {(() => {
+                    const lastLeg = r.legs[r.legs.length - 1];
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'stretch', gap: '10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '16px', flexShrink: 0 }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e63946', flexShrink: 0, marginTop: '2px' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '12px', fontWeight: 500, color: '#0f0f0f' }}>{lastLeg.to}</div>
+                          <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>Destination · {lastLeg.distance}</div>
+                          <div style={{ fontSize: '11px', color: '#185FA5', fontWeight: 500, marginTop: '2px' }}>
+                            +{lastLeg.duration} · arrives ~{lastLeg.arrivalTime}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* WhatsApp share */}
+              <button
+                onClick={(e) => { e.stopPropagation(); shareOnWhatsApp(r); }}
+                style={{
+                  marginTop: '10px', width: '100%', padding: '7px',
+                  background: '#07a140', color: '#fff', border: 'none',
+                  borderRadius: '7px', fontSize: '12px', fontWeight: 600,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', gap: '6px'
+                }}>
+                <img
+                  src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
+                  style={{ width: '16px', height: '16px' }}
+                  alt="whatsapp"
+                />
+                Share
+              </button>
             </div>
           ))}
+
+          {/* Recalculate */}
+          <button onClick={() => { setRoutes([]); setDirections([]); }}
+            style={{ width: '100%', padding: '9px', background: '#fff', color: '#555', border: '1px solid #e8e8e8', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>
+            ← Change route
+          </button>
         </>
       )}
     </div>
@@ -339,11 +427,11 @@ const Map = () => {
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
           background: '#fff', borderRadius: '20px 20px 0 0',
-          padding: panelOpen ? '1.5rem' : '1rem 1.5rem',
+          padding: '1.5rem',
           boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
           transition: 'max-height 0.3s ease',
-          maxHeight: panelOpen ? '80vh' : '80px',
-          overflow: panelOpen ? 'auto' : 'hidden',
+          maxHeight: panelOpen ? '80vh' : '30vh',
+          overflow: 'auto',
         }}>
           <div onClick={() => setPanelOpen(!panelOpen)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', marginBottom: panelOpen ? '1rem' : 0 }}>
             <div style={{ width: '40px', height: '4px', background: '#ddd', borderRadius: '2px', marginBottom: '8px' }} />
@@ -366,16 +454,14 @@ const Map = () => {
             overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.2)'
           }} onClick={e => e.stopPropagation()}>
 
-            {/* Header */}
             <div style={{ padding: '1.2rem 1.4rem', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f0f0f' }}>{selectedRoute.label}</div>
                 <div style={{ fontSize: '12px', color: '#888' }}>via {selectedRoute.via}</div>
               </div>
-              <button onClick={() => setSelectedRoute(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#aaa' }}>×</button>
+              <button onClick={() => setSelectedRoute(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#aaa' }}>x</button>
             </div>
 
-            {/* Minimap */}
             <div style={{ height: '280px' }}>
               <GoogleMap
                 mapContainerStyle={{ width: '100%', height: '100%' }}
@@ -389,7 +475,6 @@ const Map = () => {
               </GoogleMap>
             </div>
 
-            {/* Info cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1px', background: '#f0f0f0' }}>
               {[
                 { label: 'Duration', value: selectedRoute.duration },
@@ -404,10 +489,62 @@ const Map = () => {
               ))}
             </div>
 
+            {/* Breakdown inside modal too */}
+            {selectedRoute.legs && selectedRoute.legs.length > 1 && (
+              <div style={{ padding: '1.2rem 1.4rem', borderTop: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px' }}>
+                  Route breakdown
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'stretch', gap: '10px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '16px', flexShrink: 0 }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#185FA5', flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ flex: 1, width: '1.5px', background: '#e8e8e8', margin: '3px 0' }} />
+                  </div>
+                  <div style={{ flex: 1, paddingBottom: '12px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 500, color: '#0f0f0f' }}>{start}</div>
+                    <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>Starting point · depart now</div>
+                  </div>
+                </div>
+
+                {selectedRoute.legs.slice(0, -1).map((leg, legIdx) => (
+                  <div key={legIdx} style={{ display: 'flex', alignItems: 'stretch', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '16px', flexShrink: 0 }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#aaa', flexShrink: 0, marginTop: '2px' }} />
+                      <div style={{ flex: 1, width: '1.5px', background: '#e8e8e8', margin: '3px 0' }} />
+                    </div>
+                    <div style={{ flex: 1, paddingBottom: '12px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 500, color: '#0f0f0f' }}>{leg.to}</div>
+                      <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>Stop {legIdx + 1} · {leg.distance}</div>
+                      <div style={{ fontSize: '11px', color: '#185FA5', fontWeight: 500, marginTop: '2px' }}>
+                        +{leg.duration} · arrives ~{leg.arrivalTime}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {(() => {
+                  const lastLeg = selectedRoute.legs[selectedRoute.legs.length - 1];
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'stretch', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '16px', flexShrink: 0 }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e63946', flexShrink: 0, marginTop: '2px' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 500, color: '#0f0f0f' }}>{lastLeg.to}</div>
+                        <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>Destination · {lastLeg.distance}</div>
+                        <div style={{ fontSize: '11px', color: '#185FA5', fontWeight: 500, marginTop: '2px' }}>
+                          +{lastLeg.duration} · arrives ~{lastLeg.arrivalTime}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
       )}
-
     </div>
   );
 }
