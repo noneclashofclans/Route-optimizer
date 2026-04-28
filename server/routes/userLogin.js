@@ -52,6 +52,7 @@ router.post('/login', async(req, res)=>{
             res.status(401).json({message: 'Invalid email/password'});
 
         const payload = {
+            _id: user._id,
             userEmail: user.email,
             userName: user.username
         }

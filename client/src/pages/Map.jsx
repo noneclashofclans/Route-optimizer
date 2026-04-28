@@ -304,7 +304,7 @@ Shared via Route-optimizer`;
                 <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f0f0f0' }}
                   onClick={e => e.stopPropagation()}>
                   <div style={{ fontSize: '10px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                    Leg-by-leg breakdown
+                    Route Breakdown
                   </div>
 
                   {/* Start node */}

@@ -4,6 +4,7 @@ import Landing from './pages/Landing';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Map from './pages/Map';
+import History from './pages/History'
 
 const App = () => {
 
@@ -26,6 +27,7 @@ const App = () => {
           <Map />
         </ProtectedRoute>
       } />
+      <Route path="/history" element={<History />} />
     </Routes>
   )
 }

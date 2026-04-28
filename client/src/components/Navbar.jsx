@@ -29,12 +29,27 @@ const Navbar = () => {
                     <span className="navbar-toggler-icon"></span>
                 </button>
                 <div className="collapse navbar-collapse" id="navbarNav">
-                    
                     <ul className="navbar-nav ms-auto">
                         {loggedIn ? (
-                            <li className="nav-item d-flex align-items-center gap-2 mt-2 mt-lg-0">
+                            <li className="nav-item d-flex align-items-center gap-3 mt-2 mt-lg-0">
+                                <a
+                                    href="/history"
+                                    style={{
+                                        fontSize: '13px',
+                                        color: location.pathname === '/history' ? '#fff' : '#aaa',
+                                        textDecoration: 'none',
+                                        padding: '4px 10px',
+                                        borderRadius: '4px',
+                                        background: location.pathname === '/history' ? '#1a1a2e' : 'transparent',
+                                        border: '1px solid',
+                                        borderColor: location.pathname === '/history' ? '#185FA5' : 'transparent',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    History
+                                </a>
                                 <span style={{ background: '#185FA5', color: '#f8f5f5', padding: '5px 14px', borderRadius: '4px', fontSize: '14px', fontWeight: 500 }}>
-                                    Username: {JSON.parse(localStorage.getItem('user'))?.username}
+                                    {JSON.parse(localStorage.getItem('user'))?.username}
                                 </span>
                                 <button onClick={handleLogout} style={{ background: 'transparent', color: '#aaa', border: '1px solid #444', padding: '4px 12px', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
                                     Logout
@@ -44,7 +59,7 @@ const Navbar = () => {
                             <li className="nav-item">
                                 <a className="nav-link" href="/sign-up">Register</a>
                             </li>
-                        ) :  (
+                        ) : (
                             <li className="nav-item">
                                 <a className="nav-link" href="/sign-in">Login</a>
                             </li>
