@@ -90,64 +90,95 @@ Shared via Route-optimizer`;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
-  const calculateRoutes = () => {
-    if (!start || !end) return alert('Enter both locations');
-    setLoading(true);
-    setRoutes([]);
-    setDirections([]);
 
-    new window.google.maps.DirectionsService().route({
-      origin: start,
-      destination: end,
-      travelMode: window.google.maps.TravelMode.DRIVING,
-      provideRouteAlternatives: true,
-      waypoints: stops.filter(s => s.trim()).map(s => ({ location: s, stopover: true })),
-    }, (result, status) => {
-      setLoading(false);
-      if (status !== 'OK') return alert('Cannot find routes: ' + status);
+  const saveHistory = async (calculatedRoutes) => {
+    const token = localStorage.getItem('token');
+    if (!token) return; // not logged in, skip silently
 
-      const available = result.routes.slice(0, numRoutes);
-      setDirections(available.map((_, i) => ({ ...result, routes: [result.routes[i]] })));
-
-      const departTime = Date.now();
-      const allPoints = [start, ...stops.filter(s => s.trim()), end];
-
-      setRoutes(available.map((r, i) => {
-        const totalDistance = r.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
-        const totalDuration = r.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
-
-        const arrivalTime = new Date(departTime + totalDuration * 1000)
-          .toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-        // Build per-leg breakdown with rolling cumulative arrival times
-        let cumulativeSec = 0;
-        const legs = r.legs.map((leg, legIdx) => {
-          cumulativeSec += leg.duration.value;
-          const legArrival = new Date(departTime + cumulativeSec * 1000)
-            .toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-          return {
-            from: allPoints[legIdx],
-            to: allPoints[legIdx + 1],
-            distance: (leg.distance.value / 1000).toFixed(1) + ' km',
-            duration: formatDuration(leg.duration.value),
-            durationSec: leg.duration.value,
-            arrivalTime: legArrival,
-          };
-        });
-
-        return {
-          label: `Route ${i + 1}`,
-          via: r.summary,
-          distance: (totalDistance / 1000).toFixed(1) + ' km',
-          duration: formatDuration(totalDuration),
-          durationVal: totalDuration,
-          arrivalTime,
-          color: COLORS[i],
-          legs,
-        };
-      }));
+    await fetch(`${import.meta.env.VITE_API_URL}/api/history`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        from: start,
+        to: end,
+        stops: stops.filter(s => s.trim()),
+        routes: calculatedRoutes.map(r => ({
+          label: r.label,
+          via: r.via,
+          distance: r.distance,
+          duration: r.duration,
+          arrivalTime: r.arrivalTime,
+          fuelCost: mileage > 0 ? `₹${((parseFloat(r.distance) / mileage) * fuelPrice).toFixed(0)}` : null,
+          legs: r.legs,
+        })),
+      }),
     });
   };
+
+  const calculateRoutes = () => {
+  if (!start || !end) return alert('Enter both locations');
+  setLoading(true);
+  setRoutes([]);
+  setDirections([]);
+
+  new window.google.maps.DirectionsService().route({
+    origin: start,
+    destination: end,
+    travelMode: window.google.maps.TravelMode.DRIVING,
+    provideRouteAlternatives: true,
+    waypoints: stops.filter(s => s.trim()).map(s => ({ location: s, stopover: true })),
+  }, (result, status) => {
+    setLoading(false);
+    if (status !== 'OK') return alert('Cannot find routes: ' + status);
+
+    const available = result.routes.slice(0, numRoutes);
+    setDirections(available.map((_, i) => ({ ...result, routes: [result.routes[i]] })));
+
+    const departTime = Date.now();
+    const allPoints = [start, ...stops.filter(s => s.trim()), end];
+
+    const computedRoutes = available.map((r, i) => {
+      const totalDistance = r.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
+      const totalDuration = r.legs.reduce((sum, leg) => sum + leg.duration.value, 0);
+
+      const arrivalTime = new Date(departTime + totalDuration * 1000)
+        .toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+      let cumulativeSec = 0;
+      const legs = r.legs.map((leg, legIdx) => {
+        cumulativeSec += leg.duration.value;
+        const legArrival = new Date(departTime + cumulativeSec * 1000)
+          .toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        return {
+          from: allPoints[legIdx],
+          to: allPoints[legIdx + 1],
+          distance: (leg.distance.value / 1000).toFixed(1) + ' km',
+          duration: formatDuration(leg.duration.value),
+          durationSec: leg.duration.value,
+          arrivalTime: legArrival,
+        };
+      });
+
+      return {
+        label: `Route ${i + 1}`,
+        via: r.summary,
+        distance: (totalDistance / 1000).toFixed(1) + ' km',
+        duration: formatDuration(totalDuration),
+        durationVal: totalDuration,
+        arrivalTime,
+        color: COLORS[i],
+        legs,
+      };
+    });
+
+    setRoutes(computedRoutes);
+    saveHistory(computedRoutes);
+  });
+};
+
 
   const optimalIdx = routes.length
     ? routes.indexOf(routes.reduce((a, b) => a.durationVal < b.durationVal ? a : b))

@@ -34,11 +34,6 @@ const History = () => {
     setDeletingId(null);
   };
 
-  const rerunRoute = (entry) => {
-    navigate('/map', {
-      state: { from: entry.from, to: entry.to, stops: entry.stops || [] }
-    });
-  };
 
   const formatDate = (iso) => {
     const d = new Date(iso);
@@ -118,10 +113,6 @@ const History = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                  <button onClick={() => rerunRoute(entry)}
-                    style={{ fontSize: '12px', fontWeight: 500, padding: '6px 12px', background: '#f0f6ff', color: '#185FA5', border: '1px solid #dbeafe', borderRadius: '7px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    Re-run →
-                  </button>
                   <button
                     onClick={() => deleteEntry(entry._id)}
                     disabled={deletingId === entry._id}
