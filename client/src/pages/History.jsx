@@ -2,221 +2,457 @@ import React, { useEffect, useState } from 'react'
 import Navbar from '../components/Navbar'
 import { useNavigate } from 'react-router-dom'
 
-const COLORS = ['#185FA5', '#e63946', '#2a9d8f'];
-const API = import.meta.env.VITE_API_URL;
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=Playfair+Display:wght@600&display=swap');
+
+.hist-page {
+  min-height: 100vh;
+  background: #f5f5f3;
+  font-family: 'Sora', sans-serif;
+}
+
+.hist-inner {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+/* Header */
+.hist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 0.5px solid #e0e0e0;
+}
+.hist-header h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  font-weight: 600;
+  color: #0f0f0f;
+  line-height: 1.2;
+}
+.hist-header-sub {
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 4px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.hist-count-badge {
+  background: #fff;
+  border: 0.5px solid #e0e0e0;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Card */
+.hist-card {
+  background: #fff;
+  border: 0.5px solid #e8e8e8;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.hist-card:hover {
+  border-color: #ccc;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+}
+
+/* Card header zone */
+.hist-card-header {
+  padding: 1rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.hist-route-meta { flex: 1; min-width: 0; }
+.hist-route-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f0f0f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hist-route-arrow { color: #bbb; margin: 0 5px; font-size: 12px; }
+.hist-route-date {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 3px;
+}
+.hist-date-dot {
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: #ccc;
+  display: inline-block;
+}
+.hist-stops-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.hist-stop-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #f5f5f5;
+  border: 0.5px solid #e8e8e8;
+  color: #888;
+}
+
+/* Action buttons */
+.hist-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.hist-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 0.5px solid #e0e0e0;
+  background: transparent;
+  color: #0f0f0f;
+  font-family: 'Sora', sans-serif;
+  letter-spacing: 0.02em;
+  transition: background 0.12s;
+}
+.hist-btn:hover { background: #f5f5f5; }
+.hist-btn-del { color: #c0392b; border-color: #f5c6c6; }
+.hist-btn-del:hover { background: #fff5f5; }
+
+/* Routes row */
+.hist-routes-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  border-top: 0.5px solid #f0f0f0;
+}
+.hist-route-cell {
+  padding: 0.9rem 1.25rem;
+  border-right: 0.5px solid #f0f0f0;
+}
+.hist-route-cell:last-child { border-right: none; }
+
+.hist-route-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+.hist-color-pip {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.hist-label-text {
+  font-size: 10px;
+  font-weight: 600;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hist-stat-row { display: flex; flex-direction: column; gap: 4px; }
+.hist-stat { display: flex; align-items: center; gap: 7px; }
+.hist-stat-icon { font-size: 11px; width: 14px; text-align: center; }
+.hist-stat-val { font-size: 12px; color: #0f0f0f; font-weight: 500; }
+
+.hist-via {
+  font-size: 11px;
+  color: #bbb;
+  margin-top: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hist-fuel-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 7px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: #e8f5e9;
+  border: 0.5px solid #a5d6a7;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2e7d32;
+}
+
+/* Legs expand */
+.hist-legs-toggle {
+  margin-top: 8px;
+  font-size: 11px;
+  background: none;
+  border: none;
+  color: #185FA5;
+  cursor: pointer;
+  font-family: 'Sora', sans-serif;
+  padding: 0;
+}
+.hist-legs-list { margin-top: 7px; }
+.hist-leg-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 0.5px solid #f5f5f5;
+}
+.hist-leg-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #ccc;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.hist-leg-text { font-size: 11px; color: #666; line-height: 1.5; }
+.hist-leg-dur { font-size: 10px; color: #aaa; margin-top: 1px; }
+
+/* Empty state */
+.hist-empty {
+  text-align: center;
+  padding: 5rem 1rem;
+  color: #bbb;
+}
+.hist-empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; opacity: 0.4; }
+.hist-empty-msg { font-size: 14px; font-weight: 500; color: #aaa; }
+.hist-empty-sub { font-size: 12px; color: #ccc; margin-top: 4px; }
+
+/* Loading */
+.hist-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 60px);
+  font-size: 13px;
+  color: #bbb;
+  font-family: 'Sora', sans-serif;
+}
+
+@media (max-width: 520px) {
+  .hist-inner { padding: 1.5rem 1rem 3rem; }
+  .hist-header h1 { font-size: 1.6rem; }
+  .hist-routes-row { grid-template-columns: 1fr; }
+  .hist-route-cell { border-right: none; border-bottom: 0.5px solid #f0f0f0; }
+  .hist-route-cell:last-child { border-bottom: none; }
+}
+`
+
+if (typeof document !== 'undefined' && !document.getElementById('hist-style')) {
+  const style = document.createElement('style')
+  style.id = 'hist-style'
+  style.innerHTML = CSS
+  document.head.appendChild(style)
+}
+
+const COLORS = ['#185FA5', '#e63946', '#2a9d8f']
+const API = import.meta.env.VITE_API_URL
+
+const formatDate = (iso) => {
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) +
+    ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+}
 
 const History = () => {
-  const navigate = useNavigate();
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [deletingId, setDeletingId] = useState(null);
+  const navigate = useNavigate()
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState({})
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) { navigate('/sign-in'); return; }
+    const token = localStorage.getItem('token')
+    if (!token) return navigate('/sign-in')
+
     fetch(`${API}/api/history`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then(data => { setHistory(data); setLoading(false); })
-      .catch(() => { setError('Failed to load history.'); setLoading(false); });
-  }, []);
+      .then(data => { setHistory(data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
 
   const deleteEntry = async (id) => {
-    setDeletingId(id);
-    const token = localStorage.getItem('token');
+    setDeletingId(id)
+    const token = localStorage.getItem('token')
     await fetch(`${API}/api/history/${id}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    setHistory(h => h.filter(e => e._id !== id));
-    setDeletingId(null);
-  };
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    setHistory(prev => prev.filter(e => e._id !== id))
+    setDeletingId(null)
+  }
 
+  const rerunRoute = (entry) => {
+    navigate('/map', {
+      state: { start: entry.from, end: entry.to, stops: entry.stops || [] },
+    })
+  }
 
-  const formatDate = (iso) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) +
-      ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-  };
+  const toggleExpand = (key) =>
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }))
+
+  if (loading) {
+    return (
+      <div className="hist-page">
+        <Navbar />
+        <div className="hist-loading">Loading history…</div>
+      </div>
+    )
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8f9fa', fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="hist-page">
       <Navbar />
-      <div style={{ maxWidth: '760px', margin: '0 auto', padding: '2.5rem 1.5rem' }}>
 
-        {/* Page header */}
-        <div style={{ marginBottom: '2rem' }}>
-          <div style={{ fontSize: '11px', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#aaa', marginBottom: '0.5rem' }}>
-            Your account
+      <div className="hist-inner">
+
+        {/* ── Header ── */}
+        <div className="hist-header">
+          <div>
+            <h1>Route history</h1>
+            <div className="hist-header-sub">Your saved routes</div>
           </div>
-          <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '2rem', fontWeight: 400, color: '#0f0f0f', margin: 0 }}>
-            Route history
-          </h1>
-          <p style={{ fontSize: '13px', color: '#aaa', marginTop: '0.4rem' }}>
-            Your last 50 searches, saved across devices.
-          </p>
+          <div className="hist-count-badge">
+            {history.length} {history.length === 1 ? 'route' : 'routes'}
+          </div>
         </div>
 
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#aaa', fontSize: '14px' }}>
-            Loading your history...
+        {/* ── Empty state ── */}
+        {history.length === 0 && (
+          <div className="hist-empty">
+            <div className="hist-empty-icon">🗺️</div>
+            <div className="hist-empty-msg">No routes yet</div>
+            <div className="hist-empty-sub">Plan a route and it'll appear here</div>
           </div>
         )}
 
-        {error && (
-          <div style={{ background: '#fff5f5', border: '1px solid #fdd', borderRadius: '10px', padding: '1rem', color: '#c0392b', fontSize: '13px' }}>
-            {error}
-          </div>
-        )}
+        {/* ── Cards ── */}
+        {history.map((entry) => (
+          <div key={entry._id} className="hist-card">
 
-        {!loading && !error && history.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '4rem 2rem', background: '#fff', borderRadius: '14px', border: '1px solid #f0f0f0' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>🗺️</div>
-            <div style={{ fontSize: '14px', fontWeight: 500, color: '#0f0f0f', marginBottom: '0.35rem' }}>No routes yet</div>
-            <div style={{ fontSize: '13px', color: '#aaa', marginBottom: '1.5rem' }}>
-              Your searches will appear here after you plan a route.
-            </div>
-            <button onClick={() => navigate('/map')}
-              style={{ background: '#0f0f0f', color: '#fff', border: 'none', padding: '10px 22px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>
-              Plan a route
-            </button>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {history.map((entry) => (
-            <div key={entry._id} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #f0f0f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-
-              {/* Card header */}
-              <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #f6f6f6', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f0f0f' }}>
-                      {entry.from}
-                    </span>
-                    {entry.stops?.map((s, i) => (
-                      <React.Fragment key={i}>
-                        <span style={{ color: '#ccc', fontSize: '12px' }}>→</span>
-                        <span style={{ fontSize: '12px', color: '#888' }}>{s}</span>
-                      </React.Fragment>
+            {/* Top zone */}
+            <div className="hist-card-header">
+              <div className="hist-route-meta">
+                <div className="hist-route-title">
+                  {entry.from}
+                  <span className="hist-route-arrow">→</span>
+                  {entry.to}
+                </div>
+                <div className="hist-route-date">
+                  <span className="hist-date-dot" />
+                  {formatDate(entry.createdAt)}
+                </div>
+                {entry.stops?.length > 0 && (
+                  <div className="hist-stops-row">
+                    {entry.stops.map((s, i) => (
+                      <span key={i} className="hist-stop-pill">{s}</span>
                     ))}
-                    <span style={{ color: '#ccc', fontSize: '12px' }}>→</span>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f0f0f' }}>
-                      {entry.to}
-                    </span>
                   </div>
-
-                  <div style={{ fontSize: '11px', color: '#bbb' }}>{formatDate(entry.createdAt)}</div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                  <button
-                    onClick={() => deleteEntry(entry._id)}
-                    disabled={deletingId === entry._id}
-                    style={{ fontSize: '12px', padding: '6px 10px', background: '#fff5f5', color: '#e63946', border: '1px solid #fdd', borderRadius: '7px', cursor: 'pointer' }}>
-                    {deletingId === entry._id ? '...' : '✕'}
-                  </button>
-                </div>
+                )}
               </div>
 
-              {entry.routes?.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1px', background: '#f6f6f6' }}>
-                  {entry.routes.map((r, i) => (
-                    <div key={i} style={{ background: '#fff', padding: '0.85rem 1.1rem' }}>
-
-                      {/* Route label + via */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                        <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: COLORS[i] ?? '#aaa', flexShrink: 0 }} />
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#0f0f0f' }}>{r.label}</span>
-                        {r.via && (
-                          <span style={{ fontSize: '10px', color: '#bbb', marginLeft: 'auto' }}>via {r.via}</span>
-                        )}
-                      </div>
-
-                      {/* Stats */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
-                        {[
-                          { label: 'Duration', val: r.duration },
-                          { label: 'Distance', val: r.distance },
-                          { label: 'Arrives',  val: r.arrivalTime },
-                          r.fuelCost ? { label: 'Fuel', val: r.fuelCost } : null,
-                        ].filter(Boolean).map(item => (
-                          <div key={item.label} style={{ background: '#f8f8f8', borderRadius: '5px', padding: '5px 7px' }}>
-                            <div style={{ fontSize: '9px', color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
-                              {item.label}
-                            </div>
-                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#0f0f0f' }}>
-                              {item.val ?? '—'}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Leg breakdown (only if multi-stop) */}
-                      {r.legs?.length > 1 && (
-                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f0f0f0' }}>
-                          <div style={{ fontSize: '9px', fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                            Breakdown
-                          </div>
-
-                          {/* Start */}
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '12px', flexShrink: 0 }}>
-                              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#185FA5', marginTop: '2px' }} />
-                              <div style={{ flex: 1, width: '1.5px', background: '#e8e8e8', margin: '3px 0' }} />
-                            </div>
-                            <div style={{ flex: 1, paddingBottom: '8px' }}>
-                              <div style={{ fontSize: '11px', fontWeight: 500, color: '#0f0f0f' }}>{entry.from}</div>
-                              <div style={{ fontSize: '10px', color: '#bbb' }}>Depart now</div>
-                            </div>
-                          </div>
-
-                          {/* Intermediate stops */}
-                          {r.legs.slice(0, -1).map((leg, legIdx) => (
-                            <div key={legIdx} style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '12px', flexShrink: 0 }}>
-                                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#aaa', marginTop: '2px' }} />
-                                <div style={{ flex: 1, width: '1.5px', background: '#e8e8e8', margin: '3px 0' }} />
-                              </div>
-                              <div style={{ flex: 1, paddingBottom: '8px' }}>
-                                <div style={{ fontSize: '11px', fontWeight: 500, color: '#0f0f0f' }}>{leg.to}</div>
-                                <div style={{ fontSize: '10px', color: '#bbb' }}>+{leg.duration} · {leg.distance}</div>
-                                <div style={{ fontSize: '10px', color: '#185FA5', fontWeight: 500 }}>arrives ~{leg.arrivalTime}</div>
-                              </div>
-                            </div>
-                          ))}
-
-                          {/* Destination */}
-                          {(() => {
-                            const last = r.legs[r.legs.length - 1];
-                            return (
-                              <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '12px', flexShrink: 0 }}>
-                                  <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#e63946', marginTop: '2px' }} />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: '11px', fontWeight: 500, color: '#0f0f0f' }}>{last.to}</div>
-                                  <div style={{ fontSize: '10px', color: '#bbb' }}>+{last.duration} · {last.distance}</div>
-                                  <div style={{ fontSize: '10px', color: '#185FA5', fontWeight: 500 }}>arrives ~{last.arrivalTime}</div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="hist-actions">
+                <button className="hist-btn" onClick={() => rerunRoute(entry)}>
+                  Re-run ↗
+                </button>
+                <button
+                  className="hist-btn hist-btn-del"
+                  onClick={() => deleteEntry(entry._id)}
+                >
+                  {deletingId === entry._id ? '…' : '✕'}
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+
+            {/* Routes row */}
+            <div className="hist-routes-row">
+              {entry.routes?.map((r, i) => {
+                const key = `${entry._id}-${i}`
+                return (
+                  <div key={i} className="hist-route-cell">
+
+                    <div className="hist-route-label">
+                      <div
+                        className="hist-color-pip"
+                        style={{ background: COLORS[i] ?? '#888' }}
+                      />
+                      <span className="hist-label-text">{r.label}</span>
+                    </div>
+
+                    <div className="hist-stat-row">
+                      <div className="hist-stat">
+                        <span className="hist-stat-icon">⏱</span>
+                        <span className="hist-stat-val">{r.duration}</span>
+                      </div>
+                      <div className="hist-stat">
+                        <span className="hist-stat-icon">📍</span>
+                        <span className="hist-stat-val">{r.distance}</span>
+                      </div>
+                      <div className="hist-stat">
+                        <span className="hist-stat-icon">🕐</span>
+                        <span className="hist-stat-val">{r.arrivalTime}</span>
+                      </div>
+                    </div>
+
+                    {r.via && (
+                      <div className="hist-via">via {r.via}</div>
+                    )}
+
+                    {r.fuelCost && (
+                      <div className="hist-fuel-pill">⛽ {r.fuelCost}</div>
+                    )}
+
+                    {r.legs?.length > 1 && (
+                      <>
+                        <button
+                          className="hist-legs-toggle"
+                          onClick={() => toggleExpand(key)}
+                        >
+                          {expanded[key] ? '▲ Hide breakdown' : '▼ Show breakdown'}
+                        </button>
+
+                        {expanded[key] && (
+                          <div className="hist-legs-list">
+                            {r.legs.map((leg, idx) => (
+                              <div key={idx} className="hist-leg-item">
+                                <div className="hist-leg-dot" />
+                                <div>
+                                  <div className="hist-leg-text">
+                                    {leg.from} → {leg.to}
+                                  </div>
+                                  <div className="hist-leg-dur">
+                                    {leg.distance} · {leg.duration} · ~{leg.arrivalTime}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+          </div>
+        ))}
+
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default History;
+export default History

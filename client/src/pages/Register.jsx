@@ -1,87 +1,178 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
-import axios from "axios";
+import axios from "axios"
 
 const Register = () => {
-  const navigate = useNavigate();
+  const navigate = useNavigate()
 
-  const [formData, setFormdata] = useState({
+  const [formData, setFormData] = useState({
     email: '',
     password: '',
     username: ''
-  });
+  })
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleInputChange = (e) => {
-    // handling input change
-    setFormdata({ ...formData, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+    setError('')
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+
+    if (!formData.username || !formData.email || !formData.password) {
+      return setError('All fields are required')
+    }
+
+    if (formData.password.length < 6) {
+      return setError('Password must be at least 6 characters')
+    }
+
+    setLoading(true)
 
     try {
-      const res = await axios.post('https://route-optimizer-back-vj4v.onrender.com/api/auth/register', {
-        username: formData.username,
-        password: formData.password,
-        email: formData.email
-      });
+      await axios.post(
+        'https://route-optimizer-back-vj4v.onrender.com/api/auth/register',
+        formData
+      )
 
-      if (res.status === 201) {
-        alert('Registration successfull');
-        setTimeout(() => {
-          navigate('/sign-in');
-        }, 3000);
-      }
-    }
-    catch (err) {
-      console.log(err.message);
-      setLoading(false);
+      navigate('/sign-in')
+    } catch (err) {
+      setError(
+        err.response?.data?.message || 'Registration failed. Try again.'
+      )
+    } finally {
+      setLoading(false)
     }
   }
 
-
   return (
     <>
-      <Navbar></Navbar>
+      <Navbar />
 
-      <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '12px' }}>
-        <div style={{ width: '100%', maxWidth: '400px', padding: '2.5rem', border: '1px solid #f0f0f0', borderRadius: '12px' }}>
+      <div style={styles.wrapper}>
+        <form onSubmit={handleSubmit} style={styles.card}>
+          <h2 style={styles.title}>Create account</h2>
+          <p style={styles.subtitle}>Start optimizing your routes</p>
 
-          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '2rem', fontWeight: 400, margin: '0 0 0.4rem', color: '#0f0f0f' }}>
-            Create account
-          </h2>
-          <p style={{ fontSize: '13px', color: '#999', margin: '0 0 2rem' }}>Sign up to get started</p>
+          {error && <div style={styles.error}>{error}</div>}
 
-          <label style={{ fontSize: '12px', fontWeight: 500, color: '#555', marginBottom: '6px', display: 'block', letterSpacing: '0.04em' }}>Username</label>
-          <input type="text" name="username" placeholder="johndoe" onChange={handleInputChange}
-            style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '14px', marginBottom: '1.2rem', outline: 'none', fontFamily: "'DM Sans', sans-serif" }} />
+          <input
+            type="text"
+            name="username"
+            placeholder="Username"
+            value={formData.username}
+            onChange={handleChange}
+            style={styles.input}
+          />
 
-          <label style={{ fontSize: '12px', fontWeight: 500, color: '#555', marginBottom: '6px', display: 'block', letterSpacing: '0.04em' }}>Email</label>
-          <input type="text" name="email" placeholder="you@example.com" onChange={handleInputChange}
-            style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '14px', marginBottom: '1.2rem', outline: 'none', fontFamily: "'DM Sans', sans-serif" }} />
+          <input
+            type="email"
+            name="email"
+            placeholder="Email address"
+            value={formData.email}
+            onChange={handleChange}
+            style={styles.input}
+          />
 
-          <label style={{ fontSize: '12px', fontWeight: 500, color: '#555', marginBottom: '6px', display: 'block', letterSpacing: '0.04em' }}>Password</label>
-          <input type="password" name="password" placeholder="••••••••" onChange={handleInputChange}
-            style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '14px', marginBottom: '1.2rem', outline: 'none', fontFamily: "'DM Sans', sans-serif" }} />
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            value={formData.password}
+            onChange={handleChange}
+            style={styles.input}
+          />
 
-          <button onClick={handleSubmit} disabled={loading}
-            style={{ width: '100%', padding: '13px', background: '#0f0f0f', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '15px', fontWeight: 500, cursor: 'pointer', marginTop: '0.5rem', fontFamily: "'DM Sans', sans-serif" }}>
+          <button type="submit" disabled={loading} style={styles.button}>
             {loading ? 'Creating account...' : 'Register'}
           </button>
 
-          <div style={{ textAlign: 'center', fontSize: '13px', color: '#999', marginTop: '1.5rem' }}>
-            Already have an account? <a href="/sign-in" style={{ color: '#185FA5', textDecoration: 'none', fontWeight: 500 }}>Sign in</a>
-          </div>
-
-        </div>
+          <p style={styles.footer}>
+            Already have an account?{' '}
+            <Link to="/sign-in" style={styles.link}>
+              Sign in
+            </Link>
+          </p>
+        </form>
       </div>
-
     </>
   )
+}
+
+const styles = {
+  wrapper: {
+    minHeight: '85vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#fafafa',
+    fontFamily: 'DM Sans, sans-serif'
+  },
+
+  card: {
+    width: '100%',
+    maxWidth: '380px',
+    background: '#fff',
+    padding: '2.5rem',
+    borderRadius: '10px',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem'
+  },
+
+  title: {
+    fontSize: '1.8rem'
+  },
+
+  subtitle: {
+    fontSize: '0.9rem',
+    color: '#777',
+    marginBottom: '1rem'
+  },
+
+  input: {
+    padding: '12px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    outline: 'none'
+  },
+
+  button: {
+    padding: '12px',
+    background: '#185FA5',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 500
+  },
+
+  error: {
+    background: '#ffe5e5',
+    color: '#d8000c',
+    padding: '10px',
+    borderRadius: '6px',
+    fontSize: '13px'
+  },
+
+  footer: {
+    fontSize: '13px',
+    textAlign: 'center',
+    marginTop: '1rem',
+    color: '#777'
+  },
+
+  link: {
+    color: '#185FA5',
+    textDecoration: 'none',
+    fontWeight: 500
+  }
 }
 
 export default Register

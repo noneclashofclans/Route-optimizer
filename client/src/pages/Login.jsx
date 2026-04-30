@@ -1,74 +1,170 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
-import axios from 'axios';
+import axios from 'axios'
 
 const Login = () => {
-    const navigate = useNavigate();
-    const [formData, setFormdata] = useState({email: "", password: ""});
-    const [loading, setLoading] = useState(false);
+  const navigate = useNavigate()
 
-    const handleInputChange = (e) => {
-      setFormdata({...formData, [e.target.name]: e.target.value});
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  })
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+    setError('')
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!formData.email || !formData.password) {
+      return setError('All fields are required')
     }
 
+    setLoading(true)
 
-    const handleSubmit = async(e)=>{
-      e.preventDefault();
-      setLoading(true);
+    try {
+      const res = await axios.post(
+        'https://route-optimizer-back-vj4v.onrender.com/api/auth/login',
+        formData
+      )
 
-      try{
-        const res = await axios.post('https://route-optimizer-back-vj4v.onrender.com/api/auth/login', {
-          email: formData.email,
-          password: formData.password
-        });
+      const { token, user } = res.data
 
-        if (res.status === 200){
-          const {token, user} = res.data;
-          localStorage.setItem('token', token);
-          localStorage.setItem('user', JSON.stringify(user));
-          alert(`Login successfull. Welcome back ${user.username}.`)
-          setTimeout(() => navigate("/map"), 1800);
-        }
-      }
-      catch(err){
-        console.log(err.message);
-        setLoading(false);
-      }
+      localStorage.setItem('token', token)
+      localStorage.setItem('user', JSON.stringify(user))
 
+      navigate('/map')
+    } catch (err) {
+      setError(
+        err.response?.data?.message || 'Invalid credentials. Try again.'
+      )
+    } finally {
+      setLoading(false)
     }
+  }
+
   return (
     <>
-        <Navbar></Navbar>
-        
-        <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-  <div style={{ width: '100%', maxWidth: '400px', padding: '2.5rem', border: '1px solid #f0f0f0', borderRadius: '12px' }}>
-    
-    <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '2rem', fontWeight: 400, margin: '0 0 0.4rem', color: '#0f0f0f' }}>
-      Welcome back
-    </h2>
-    <p style={{ fontSize: '13px', color: '#999', margin: '0 0 2rem' }}>Sign in to your account</p>
+      <Navbar />
 
-    <label style={{ fontSize: '12px', fontWeight: 500, color: '#555', marginBottom: '6px', display: 'block', letterSpacing: '0.04em' }}>Email</label>
-    <input type="text" name="email" placeholder="you@example.com" onChange={handleInputChange}
-      style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '14px', marginBottom: '1.2rem', outline: 'none' }} />
+      <div style={styles.wrapper}>
+        <form onSubmit={handleSubmit} style={styles.card}>
+          <h2 style={styles.title}>Welcome back</h2>
+          <p style={styles.subtitle}>Sign in to continue</p>
 
-    <label style={{ fontSize: '12px', fontWeight: 500, color: '#555', marginBottom: '6px', display: 'block', letterSpacing: '0.04em' }}>Password</label>
-    <input type="password" name="password" placeholder="••••••••" onChange={handleInputChange}
-      style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '14px', marginBottom: '1.2rem', outline: 'none' }} />
+          {error && <div style={styles.error}>{error}</div>}
 
-    <button onClick={handleSubmit} disabled={loading}
-      style={{ width: '100%', padding: '13px', background: '#0f0f0f', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '15px', fontWeight: 500, cursor: 'pointer', marginTop: '0.5rem' }}>
-      {loading ? 'Signing in...' : 'Sign in'}
-    </button>
+          <input
+            type="email"
+            name="email"
+            placeholder="Email address"
+            value={formData.email}
+            onChange={handleChange}
+            style={styles.input}
+          />
 
-    <div style={{ textAlign: 'center', fontSize: '13px', color: '#999', marginTop: '1.5rem' }}>
-      Don't have an account? <a href="/sign-up" style={{ color: '#185FA5', textDecoration: 'none', fontWeight: 500 }}>Register</a>
-    </div>
-  </div>
-</div>
-    </> 
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            value={formData.password}
+            onChange={handleChange}
+            style={styles.input}
+          />
+
+          <button type="submit" disabled={loading} style={styles.button}>
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+
+          <p style={styles.footer}>
+            Don’t have an account?{' '}
+            <Link to="/sign-up" style={styles.link}>
+              Register
+            </Link>
+          </p>
+        </form>
+      </div>
+    </>
   )
+}
+
+const styles = {
+  wrapper: {
+    minHeight: '85vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#fafafa',
+    fontFamily: 'DM Sans, sans-serif'
+  },
+
+  card: {
+    width: '100%',
+    maxWidth: '380px',
+    background: '#fff',
+    padding: '2.5rem',
+    borderRadius: '10px',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem'
+  },
+
+  title: {
+    fontSize: '1.8rem',
+    marginBottom: '0.2rem'
+  },
+
+  subtitle: {
+    fontSize: '0.9rem',
+    color: '#777',
+    marginBottom: '1rem'
+  },
+
+  input: {
+    padding: '12px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    outline: 'none'
+  },
+
+  button: {
+    padding: '12px',
+    background: '#185FA5',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 500
+  },
+
+  error: {
+    background: '#ffe5e5',
+    color: '#d8000c',
+    padding: '10px',
+    borderRadius: '6px',
+    fontSize: '13px'
+  },
+
+  footer: {
+    fontSize: '13px',
+    textAlign: 'center',
+    marginTop: '1rem',
+    color: '#777'
+  },
+
+  link: {
+    color: '#185FA5',
+    textDecoration: 'none',
+    fontWeight: 500
+  }
 }
 
 export default Login
